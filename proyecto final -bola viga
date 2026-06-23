@@ -1,0 +1,101 @@
+#include <ESP32Servo.h>
+// Pines del sensor ultrasónico
+const int TRIG_PIN = 19;
+const int ECHO_PIN = 21;
+
+// Servo
+const int SERVO_PIN = 18;
+Servo servo;
+
+// PID
+float setpoint = 17.0;      // Posición deseada de la bola (cm)
+
+float Kp = 2.0;
+float Ki = 0.08;
+float Kd = 0.02;
+
+float error = 0;
+float errorAnterior = 0;
+float integral = 0;
+float derivada = 0;
+
+unsigned long tiempoAnterior = 0;
+
+float medirDistancia() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  long duracion = pulseIn(ECHO_PIN, HIGH, 30000);
+
+  float distancia = duracion * 0.0343 / 2.0;
+
+  return distancia;
+}
+
+void setup() {
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  servo.attach(SERVO_PIN);
+  servo.write(90); // barra horizontal
+
+  Serial.begin(9600);
+
+  tiempoAnterior = millis();
+}
+
+void loop() {
+
+  // Leer posición de la bola
+  float posicion = medirDistancia();
+
+  // Tiempo transcurrido
+  unsigned long tiempoActual = millis();
+  float dt = (tiempoActual - tiempoAnterior) / 1000.0;
+
+  if (dt <= 0) return;
+
+  // Error PID
+  error = setpoint - posicion;
+
+  integral += error * dt;
+
+  derivada = (error - errorAnterior) / dt;
+
+  float salidaPID =
+      (Kp * error) +
+      (Ki * integral) +
+      (Kd * derivada);
+
+  // Convertir salida PID a ángulo del servo
+  int angulo = 90 + salidaPID;
+
+  int angulo2 = map(angulo, 43, 119, 0, 180);
+
+  servo.write(angulo2);
+
+  // Guardar datos para siguiente ciclo
+  errorAnterior = error;
+  tiempoAnterior = tiempoActual;
+
+  // Monitoreo serial
+  Serial.print("Posicion: ");
+  Serial.print(posicion);
+  Serial.print(" cm");
+
+  Serial.print("  Error: ");
+  Serial.print(error);
+
+  Serial.print("  PID: ");
+  Serial.print(angulo);
+
+  Serial.print("  Servo: ");
+  Serial.println(angulo2);
+
+  delay(50);
+}
+// :)
